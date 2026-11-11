@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { formatPrice, type Product } from "@/lib/products";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 declare global { interface Window { Razorpay?: new (options: Record<string, unknown>) => { open: () => void }; } }
 
@@ -11,6 +12,9 @@ export function CheckoutButton({ product, quantity = 1 }: { product: Product; qu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pay = async () => {
+    const supabase = createSupabaseBrowserClient();
+    const { data: { user } } = await supabase?.auth.getUser() ?? { data: { user: null } };
+    if (!user) { window.location.assign("/login?next=%2Fcheckout"); return; }
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ listingSlug: product.id, quantity }) });

@@ -12,10 +12,9 @@ const palettes: Record<string, [string, string, string]> = {
 
 export function ProductArt({ product, detail = false }: { product: Product; detail?: boolean }) {
   const [primary, dark, symbol] = palettes[product.id] ?? ["#654ca6", "#17122b", product.icon];
-  const style = { "--art-a": primary, "--art-b": dark } as CSSProperties;
+  const style = { "--art-a": primary, "--art-b": dark, ...(product.imageUrl ? { backgroundImage: `linear-gradient(0deg, #09081288, transparent 55%), url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" } : {}) } as CSSProperties;
   return <div className={detail ? "detail-art" : "product-art"} style={style} aria-label={`${product.title} artwork`}>
-    <span className="art-orbit" aria-hidden="true" />
-    <span className={detail ? "detail-art-symbol" : "art-symbol"} aria-hidden="true">{symbol}</span>
+    {!product.imageUrl && <><span className="art-orbit" aria-hidden="true" /><span className={detail ? "detail-art-symbol" : "art-symbol"} aria-hidden="true">{symbol}</span></>}
     {detail && <span className="detail-art-caption">DISCPLACE ORIGINAL · {product.category.toUpperCase()}</span>}
   </div>;
 }

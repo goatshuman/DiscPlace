@@ -17,11 +17,13 @@ create table if not exists public.products (
   price_inr integer not null check (price_inr between 1 and 1000000),
   includes jsonb not null default '[]'::jsonb,
   tags text[] not null default '{}',
+  image_path text,
   is_published boolean not null default false,
   seller_id uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now()
 );
 alter table public.products add column if not exists tags text[] not null default '{}';
+alter table public.products add column if not exists image_path text;
 create index if not exists products_public_created_idx on public.products (is_published, created_at desc);
 create index if not exists products_tags_idx on public.products using gin(tags);
 
@@ -105,6 +107,20 @@ drop policy if exists "Members can create own safe listings" on public.products;
 create policy "Members can create own safe listings" on public.products for insert with check (seller_id = auth.uid() and not coalesce((select is_suspended from public.profiles where id = auth.uid()), true));
 drop policy if exists "Members can update own safe listings" on public.products;
 create policy "Members can update own safe listings" on public.products for update using (seller_id = auth.uid()) with check (seller_id = auth.uid() and not coalesce((select is_suspended from public.profiles where id = auth.uid()), true));
+drop policy if exists "Members can delete own listings" on public.products;
+create policy "Members can delete own listings" on public.products for delete using (seller_id = auth.uid());
+
+-- Public listing photos; uploads and deletion are limited to the seller's own folder.
+insert into storage.buckets (id, name, public) values ('listing-images', 'listing-images', true)
+on conflict (id) do update set public = true;
+drop policy if exists "Listing photos are publicly readable" on storage.objects;
+create policy "Listing photos are publicly readable" on storage.objects for select using (bucket_id = 'listing-images');
+drop policy if exists "Sellers can upload listing photos to own folder" on storage.objects;
+create policy "Sellers can upload listing photos to own folder" on storage.objects for insert to authenticated
+with check (bucket_id = 'listing-images' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "Sellers can delete listing photos from own folder" on storage.objects;
+create policy "Sellers can delete listing photos from own folder" on storage.objects for delete to authenticated
+using (bucket_id = 'listing-images' and (storage.foldername(name))[1] = auth.uid()::text);
 drop policy if exists "Orders visible to buyer or seller" on public.orders;
 create policy "Orders visible to buyer or seller" on public.orders for select using (buyer_id = auth.uid() or seller_id = auth.uid());
 drop policy if exists "Published listing ratings are visible" on public.ratings;

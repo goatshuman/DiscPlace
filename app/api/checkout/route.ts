@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const { data: payout } = await admin.from("seller_payouts").select("razorpay_linked_account_id").eq("seller_id", listing.seller_id).maybeSingle();
   if (!payout?.razorpay_linked_account_id) return NextResponse.json({ error: "This seller’s protected payout account is not connected yet. No payment was taken." }, { status: 409 });
 
-  const { data: order, error: saveError } = await admin.from("orders").insert({ buyer_id: user.id, buyer_email: user.email ?? "", seller_id: listing.seller_id, listing_slug: listing.slug, quantity, amount_inr: total, platform_fee_inr: fee, seller_payout_inr: sellerPayout, status: "pending" }).select("id").single();
+  const { data: order, error: saveError } = await admin.from("orders").insert({ buyer_id: user.id, seller_id: listing.seller_id, listing_slug: listing.slug, quantity, amount_inr: total, platform_fee_inr: fee, seller_payout_inr: sellerPayout, status: "pending" }).select("id").single();
   if (saveError || !order) return NextResponse.json({ error: "Could not reserve this order. Please try again." }, { status: 500 });
 
   const gateway = await fetch("https://api.razorpay.com/v1/orders", {

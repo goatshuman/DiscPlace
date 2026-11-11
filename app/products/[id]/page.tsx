@@ -24,15 +24,25 @@ export default function ProductPage() {
   useEffect(() => {
     if (seeded) return;
     const supabase = createSupabaseBrowserClient();
-    if (supabase) void supabase.from("products").select("slug,title,description,category,product_type,price_inr,tags").eq("slug", params.id).eq("is_published", true).maybeSingle().then(({ data }) => {
-      if (data) setDynamicProduct({ id: data.slug, title: data.title, description: data.description, category: data.category, type: data.product_type === "setup_service" ? "Setup service" : "Blueprint", price: data.price_inr, tags: data.tags ?? [], rating: 0, reviews: 0, includes: [], gradient: "from-violet-600/40 to-indigo-950", icon: "✦", delivery: "Seller arranged" }); else setNotFound(true);
+    if (!supabase) { setNotFound(true); return; }
+    void supabase.from("products").select("slug,title,description,category,product_type,price_inr,tags,seller_id,image_path").eq("slug", params.id).eq("is_published", true).maybeSingle().then(async ({ data }) => {
+      if (!data) { setNotFound(true); return; }
+      const { data: ratings } = await supabase.from("ratings").select("rating").eq("listing_slug", data.slug);
+      const count = ratings?.length ?? 0;
+      const rating = count ? (ratings ?? []).reduce((sum, row) => sum + row.rating, 0) / count : 0;
+      setDynamicProduct({ id: data.slug, title: data.title, description: data.description, category: data.category, type: data.product_type === "setup_service" ? "Setup service" : "Blueprint", price: data.price_inr, tags: data.tags ?? [], rating, reviews: count, includes: [], gradient: "from-violet-600/40 to-indigo-950", icon: "✦", delivery: "Seller arranged", ownerId: data.seller_id, imagePath: data.image_path, imageUrl: data.image_path ? supabase.storage.from("listing-images").getPublicUrl(data.image_path).data.publicUrl : undefined });
     });
-    else try { const saved = JSON.parse(localStorage.getItem("discplace-user-listings-v1") || "[]") as Product[]; const item = saved.find((value) => value.id === params.id); if (item) setDynamicProduct(item); else setNotFound(true); } catch { setNotFound(true); }
   }, [params.id, seeded]);
 
   const product = seeded ?? dynamicProduct;
   if (!product) return <><Header/><main className="page-shell"><h1 className="page-heading">{notFound ? "Listing not found." : "Loading listing…"}</h1><Link href="/#explore" className="btn">Back to marketplace</Link></main></>;
   const related = products.filter((item) => item.id !== product.id).slice(0, 3);
+  const beginBuy = async () => {
+    const supabase = createSupabaseBrowserClient();
+    const { data: { user } } = await supabase?.auth.getUser() ?? { data: { user: null } };
+    if (!user) { window.location.assign(`/login?next=${encodeURIComponent(`/products/${product.id}`)}`); return; }
+    setConfirmBuy(true);
+  };
   const includes = product.includes.length ? product.includes : ["Details and delivery coordinated with the seller", "Message the creator before you buy", "Checkout and payment activity stay on DiscPlace"];
   return <><Header/><main className="page-shell">
     <Link href="/#explore" className="crumb"><ArrowLeft size={13}/> Back to marketplace</Link>
@@ -43,7 +53,7 @@ export default function ProductPage() {
         <h1>{product.title}</h1><p className="detail-description">{product.description}</p>
         <div className="detail-rating"><Star size={13} fill="currentColor"/> {product.rating.toFixed(1)} <span className="muted">· {product.reviews} ratings</span></div>
         <div className="purchase-price"><strong>{formatPrice(product.price)}</strong>{product.compareAt && <del>{formatPrice(product.compareAt)}</del>}</div>
-        <button className="btn" style={{ width: "100%", padding: 15 }} onClick={() => setConfirmBuy(true)}><ShoppingBag size={15}/> Buy safely</button>
+        <button className="btn" style={{ width: "100%", padding: 15 }} onClick={beginBuy}><ShoppingBag size={15}/> Buy safely</button>
         <Link href={`/messages?listing=${encodeURIComponent(product.id)}`} className="btn btn-secondary" style={{ width: "100%", marginTop: 9 }}><MessageCircle size={14}/> Message seller</Link>
         <div className="assurance"><span><Clock3 size={14}/>{product.delivery}</span><span><ShieldCheck size={14}/>Keep payment inside DiscPlace</span></div>
         <p className="checkout-disclaimer">Never send QR or UPI payments to a seller. Use DiscPlace checkout so your order is recorded.</p>
