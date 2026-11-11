@@ -1,0 +1,10 @@
+node_modules
+.next
+.next-discplace
+build
+out
+.env
+.env.local
+.vercel
+work
+*.tsbuildinfo
